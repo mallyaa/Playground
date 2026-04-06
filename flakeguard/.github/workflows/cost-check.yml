@@ -1,0 +1,47 @@
+# flakeguard: on PR, run cost estimation and output markdown summary
+name: flakeguard cost check
+
+on:
+  pull_request:
+    paths:
+      - '**.sql'
+      - 'models/**'
+      - 'dbt_project.yml'
+      - 'target/manifest.json'
+  workflow_dispatch:
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install flakeguard
+        run: pip install -e .
+
+      - name: Run analysis (with sample manifest if needed)
+        id: analysis
+        run: |
+          mkdir -p target
+          if [ ! -f target/manifest.json ] && [ -f examples/sample_manifest.json ]; then
+            cp examples/sample_manifest.json target/manifest.json
+          fi
+          if [ -f target/manifest.json ]; then
+            flakeguard analyze . --warehouse M > analysis.txt 2>&1 || true
+            echo "## flakeguard Cost Summary" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            cat analysis.txt >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "No manifest found (add target/manifest.json or examples/sample_manifest.json)." >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Comment summary (optional)
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "Add a step here to post analysis.txt to PR comment if desired (e.g. with actions/github-script)."

@@ -1,0 +1,133 @@
+{
+  "metadata": {
+    "dbt_schema_version": "https://schemas.getdbt.com/dbt/manifest/v10.json",
+    "dbt_core_version": "1.6.0",
+    "generated_at": "2024-02-10T14:00:00Z"
+  },
+  "nodes": {
+    "model.analytics.stg_invoices": {
+      "name": "stg_invoices",
+      "unique_id": "model.analytics.stg_invoices",
+      "package_name": "analytics",
+      "path": "stg_invoices.sql",
+      "original_file_path": "models/staging/stg_invoices.sql",
+      "config": { "materialized": "view" },
+      "depends_on": { "nodes": [] },
+      "execution_time_seconds": 90,
+      "raw_code": "select * from erp.invoices",
+      "compiled_code": "select * from warehouse.erp_invoices"
+    },
+    "model.analytics.stg_line_items": {
+      "name": "stg_line_items",
+      "unique_id": "model.analytics.stg_line_items",
+      "package_name": "analytics",
+      "path": "stg_line_items.sql",
+      "original_file_path": "models/staging/stg_line_items.sql",
+      "config": { "materialized": "view" },
+      "depends_on": { "nodes": [] },
+      "execution_time_seconds": 200,
+      "raw_code": "select * from erp.line_items",
+      "compiled_code": "select * from warehouse.erp_line_items"
+    },
+    "model.analytics.stg_customers": {
+      "name": "stg_customers",
+      "unique_id": "model.analytics.stg_customers",
+      "package_name": "analytics",
+      "path": "stg_customers.sql",
+      "original_file_path": "models/staging/stg_customers.sql",
+      "config": { "materialized": "table" },
+      "depends_on": { "nodes": [] },
+      "execution_time_seconds": 65,
+      "raw_code": "select id, name, region, segment from erp.customers where active = true",
+      "compiled_code": "select id, name, region, segment from warehouse.erp_customers where active = true"
+    },
+    "model.analytics.int_invoice_lines": {
+      "name": "int_invoice_lines",
+      "unique_id": "model.analytics.int_invoice_lines",
+      "package_name": "analytics",
+      "path": "int_invoice_lines.sql",
+      "original_file_path": "models/intermediate/int_invoice_lines.sql",
+      "config": { "materialized": "table" },
+      "depends_on": { "nodes": ["model.analytics.stg_invoices", "model.analytics.stg_line_items"] },
+      "execution_time_seconds": 320,
+      "raw_code": "select * from {{ ref('stg_invoices') }} i join {{ ref('stg_line_items') }} l on i.id = l.invoice_id",
+      "compiled_code": "select * from warehouse.stg_invoices i join warehouse.stg_line_items l on i.id = l.invoice_id"
+    },
+    "model.analytics.int_customer_revenue": {
+      "name": "int_customer_revenue",
+      "unique_id": "model.analytics.int_customer_revenue",
+      "package_name": "analytics",
+      "path": "int_customer_revenue.sql",
+      "original_file_path": "models/intermediate/int_customer_revenue.sql",
+      "config": { "materialized": "table" },
+      "depends_on": { "nodes": ["model.analytics.int_invoice_lines", "model.analytics.stg_customers"] },
+      "execution_time_seconds": 180,
+      "raw_code": "select * from {{ ref('int_invoice_lines') }}",
+      "compiled_code": "select * from warehouse.int_invoice_lines"
+    },
+    "model.analytics.int_region_rollup": {
+      "name": "int_region_rollup",
+      "unique_id": "model.analytics.int_region_rollup",
+      "package_name": "analytics",
+      "path": "int_region_rollup.sql",
+      "original_file_path": "models/intermediate/int_region_rollup.sql",
+      "config": { "materialized": "table" },
+      "depends_on": { "nodes": ["model.analytics.int_customer_revenue"] },
+      "execution_time_seconds": 95,
+      "raw_code": "select region, sum(amount) as total from {{ ref('int_customer_revenue') }} group by region",
+      "compiled_code": "select region, sum(amount) as total from warehouse.int_customer_revenue group by region"
+    },
+    "model.analytics.fct_invoices": {
+      "name": "fct_invoices",
+      "unique_id": "model.analytics.fct_invoices",
+      "package_name": "analytics",
+      "path": "fct_invoices.sql",
+      "original_file_path": "models/marts/fct_invoices.sql",
+      "config": { "materialized": "table" },
+      "depends_on": { "nodes": ["model.analytics.int_invoice_lines"] },
+      "execution_time_seconds": 410,
+      "raw_code": "select * from ( select * from ( select * from ( select * from {{ ref('int_invoice_lines') }} ) x ) y ) z",
+      "compiled_code": "select * from ( select * from ( select * from ( select * from warehouse.int_invoice_lines ) x ) y ) z"
+    },
+    "model.analytics.dim_customer": {
+      "name": "dim_customer",
+      "unique_id": "model.analytics.dim_customer",
+      "package_name": "analytics",
+      "path": "dim_customer.sql",
+      "original_file_path": "models/marts/dim_customer.sql",
+      "config": { "materialized": "table" },
+      "depends_on": { "nodes": ["model.analytics.stg_customers", "model.analytics.int_customer_revenue"] },
+      "execution_time_seconds": 130,
+      "raw_code": "select * from {{ ref('stg_customers') }}",
+      "compiled_code": "select * from warehouse.stg_customers"
+    },
+    "model.analytics.rpt_revenue_by_region": {
+      "name": "rpt_revenue_by_region",
+      "unique_id": "model.analytics.rpt_revenue_by_region",
+      "package_name": "analytics",
+      "path": "rpt_revenue_by_region.sql",
+      "original_file_path": "models/marts/rpt_revenue_by_region.sql",
+      "config": { "materialized": "table" },
+      "depends_on": { "nodes": ["model.analytics.int_region_rollup", "model.analytics.fct_invoices"] },
+      "execution_time_seconds": 70,
+      "raw_code": "select r.region, r.total, f.invoice_count from {{ ref('int_region_rollup') }} r left join ( select region, count(*) as invoice_count from {{ ref('fct_invoices') }} group by region ) f on r.region = f.region",
+      "compiled_code": "select r.region, r.total, f.invoice_count from warehouse.int_region_rollup r left join ( select region, count(*) as invoice_count from warehouse.fct_invoices group by region ) f on r.region = f.region"
+    },
+    "model.analytics.rpt_exec_dashboard": {
+      "name": "rpt_exec_dashboard",
+      "unique_id": "model.analytics.rpt_exec_dashboard",
+      "package_name": "analytics",
+      "path": "rpt_exec_dashboard.sql",
+      "original_file_path": "models/marts/rpt_exec_dashboard.sql",
+      "config": { "materialized": "table" },
+      "depends_on": { "nodes": ["model.analytics.rpt_revenue_by_region", "model.analytics.dim_customer"] },
+      "execution_time_seconds": 145,
+      "raw_code": "select * from {{ ref('rpt_revenue_by_region') }} cross join {{ ref('dim_customer') }}",
+      "compiled_code": "select * from warehouse.rpt_revenue_by_region cross join warehouse.dim_customer"
+    }
+  },
+  "sources": {},
+  "macros": {},
+  "parent_map": {},
+  "child_map": {}
+}

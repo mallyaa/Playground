@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "flakeguard"
+version = "0.1.0"
+description = "Cost-intelligence engine for dbt/Snowflake pipelines: DAG analysis, cost estimation, SQL anti-pattern detection, warehouse scaling simulation"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "flakeguard" }]
+keywords = ["dbt", "snowflake", "cost", "dag", "sql", "lint"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3.11",
+]
+dependencies = [
+    "typer>=0.9.0",
+    "networkx>=3.2",
+    "sqlglot>=20.0.0",
+    "pydantic>=2.5.0",
+    "streamlit>=1.29.0",
+    "pyyaml>=6.0.1",
+    "pandas>=2.0.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.4", "pytest-cov>=4.1"]
+
+[project.scripts]
+flakeguard = "flakeguard.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["flakeguard*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

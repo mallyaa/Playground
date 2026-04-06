@@ -1,0 +1,181 @@
+{
+  "metadata": {
+    "dbt_schema_version": "https://schemas.getdbt.com/dbt/manifest/v10.json",
+    "dbt_core_version": "1.6.0",
+    "generated_at": "2024-02-01T10:00:00Z"
+  },
+  "nodes": {
+    "model.ecommerce.raw_orders": {
+      "name": "raw_orders",
+      "unique_id": "model.ecommerce.raw_orders",
+      "package_name": "ecommerce",
+      "path": "raw_orders.sql",
+      "original_file_path": "models/staging/raw_orders.sql",
+      "config": { "materialized": "view" },
+      "depends_on": { "nodes": [] },
+      "execution_time_seconds": 55,
+      "raw_code": "select * from source_system.orders",
+      "compiled_code": "select * from analytics.orders"
+    },
+    "model.ecommerce.raw_customers": {
+      "name": "raw_customers",
+      "unique_id": "model.ecommerce.raw_customers",
+      "package_name": "ecommerce",
+      "path": "raw_customers.sql",
+      "original_file_path": "models/staging/raw_customers.sql",
+      "config": { "materialized": "view" },
+      "depends_on": { "nodes": [] },
+      "execution_time_seconds": 45,
+      "raw_code": "select * from source_system.customers where upper(email) = 'TEST@EXAMPLE.COM'",
+      "compiled_code": "select * from analytics.customers where upper(email) = 'TEST@EXAMPLE.COM'"
+    },
+    "model.ecommerce.raw_products": {
+      "name": "raw_products",
+      "unique_id": "model.ecommerce.raw_products",
+      "package_name": "ecommerce",
+      "path": "raw_products.sql",
+      "original_file_path": "models/staging/raw_products.sql",
+      "config": { "materialized": "table" },
+      "depends_on": { "nodes": [] },
+      "execution_time_seconds": 120,
+      "raw_code": "select * from source_system.products",
+      "compiled_code": "select * from analytics.products"
+    },
+    "model.ecommerce.raw_events": {
+      "name": "raw_events",
+      "unique_id": "model.ecommerce.raw_events",
+      "package_name": "ecommerce",
+      "path": "raw_events.sql",
+      "original_file_path": "models/staging/raw_events.sql",
+      "config": { "materialized": "view" },
+      "depends_on": { "nodes": [] },
+      "execution_time_seconds": 180,
+      "raw_code": "select event_id, user_id, event_type, created_at from source_system.events where created_at >= current_date - 7",
+      "compiled_code": "select event_id, user_id, event_type, created_at from analytics.events where created_at >= current_date - 7"
+    },
+    "model.ecommerce.int_orders_enriched": {
+      "name": "int_orders_enriched",
+      "unique_id": "model.ecommerce.int_orders_enriched",
+      "package_name": "ecommerce",
+      "path": "int_orders_enriched.sql",
+      "original_file_path": "models/intermediate/int_orders_enriched.sql",
+      "config": { "materialized": "table" },
+      "depends_on": { "nodes": ["model.ecommerce.raw_orders", "model.ecommerce.raw_customers"] },
+      "execution_time_seconds": 200,
+      "raw_code": "select o.*, c.customer_tier from {{ ref('raw_orders') }} o left join {{ ref('raw_customers') }} c on o.customer_id = c.id or o.email = c.email",
+      "compiled_code": "select o.*, c.customer_tier from analytics.raw_orders o left join analytics.raw_customers c on o.customer_id = c.id or o.email = c.email"
+    },
+    "model.ecommerce.int_customer_orders": {
+      "name": "int_customer_orders",
+      "unique_id": "model.ecommerce.int_customer_orders",
+      "package_name": "ecommerce",
+      "path": "int_customer_orders.sql",
+      "original_file_path": "models/intermediate/int_customer_orders.sql",
+      "config": { "materialized": "table" },
+      "depends_on": { "nodes": ["model.ecommerce.int_orders_enriched"] },
+      "execution_time_seconds": 95,
+      "raw_code": "select customer_id, count(*) as order_count, sum(amount) as total_spend from {{ ref('int_orders_enriched') }} group by 1",
+      "compiled_code": "select customer_id, count(*) as order_count, sum(amount) as total_spend from analytics.int_orders_enriched group by 1"
+    },
+    "model.ecommerce.int_product_sales": {
+      "name": "int_product_sales",
+      "unique_id": "model.ecommerce.int_product_sales",
+      "package_name": "ecommerce",
+      "path": "int_product_sales.sql",
+      "original_file_path": "models/intermediate/int_product_sales.sql",
+      "config": { "materialized": "table" },
+      "depends_on": { "nodes": ["model.ecommerce.raw_orders", "model.ecommerce.raw_products"] },
+      "execution_time_seconds": 280,
+      "raw_code": "select * from {{ ref('raw_orders') }} o cross join {{ ref('raw_products') }} p where o.product_id = p.id",
+      "compiled_code": "select * from analytics.raw_orders o cross join analytics.raw_products p where o.product_id = p.id"
+    },
+    "model.ecommerce.int_events_daily": {
+      "name": "int_events_daily",
+      "unique_id": "model.ecommerce.int_events_daily",
+      "package_name": "ecommerce",
+      "path": "int_events_daily.sql",
+      "original_file_path": "models/intermediate/int_events_daily.sql",
+      "config": { "materialized": "table" },
+      "depends_on": { "nodes": ["model.ecommerce.raw_events"] },
+      "execution_time_seconds": 150,
+      "raw_code": "select date_trunc('day', created_at) as day, event_type, count(*) from {{ ref('raw_events') }} group by 1, 2",
+      "compiled_code": "select date_trunc('day', created_at) as day, event_type, count(*) from analytics.raw_events group by 1, 2"
+    },
+    "model.ecommerce.fct_orders": {
+      "name": "fct_orders",
+      "unique_id": "model.ecommerce.fct_orders",
+      "package_name": "ecommerce",
+      "path": "fct_orders.sql",
+      "original_file_path": "models/marts/fct_orders.sql",
+      "config": { "materialized": "table" },
+      "depends_on": { "nodes": ["model.ecommerce.int_orders_enriched", "model.ecommerce.int_product_sales"] },
+      "execution_time_seconds": 420,
+      "raw_code": "select * from {{ ref('int_orders_enriched') }} union all select * from ( select * from ( select * from {{ ref('int_product_sales') }} ) )",
+      "compiled_code": "select * from analytics.int_orders_enriched union all select * from ( select * from ( select * from analytics.int_product_sales ) )"
+    },
+    "model.ecommerce.fct_events": {
+      "name": "fct_events",
+      "unique_id": "model.ecommerce.fct_events",
+      "package_name": "ecommerce",
+      "path": "fct_events.sql",
+      "original_file_path": "models/marts/fct_events.sql",
+      "config": { "materialized": "incremental" },
+      "depends_on": { "nodes": ["model.ecommerce.int_events_daily"] },
+      "execution_time_seconds": 380,
+      "raw_code": "select * from {{ ref('int_events_daily') }}",
+      "compiled_code": "select * from analytics.int_events_daily"
+    },
+    "model.ecommerce.dim_customers": {
+      "name": "dim_customers",
+      "unique_id": "model.ecommerce.dim_customers",
+      "package_name": "ecommerce",
+      "path": "dim_customers.sql",
+      "original_file_path": "models/marts/dim_customers.sql",
+      "config": { "materialized": "table" },
+      "depends_on": { "nodes": ["model.ecommerce.raw_customers", "model.ecommerce.int_customer_orders"] },
+      "execution_time_seconds": 110,
+      "raw_code": "select c.*, co.order_count, co.total_spend from {{ ref('raw_customers') }} c left join {{ ref('int_customer_orders') }} co on c.id = co.customer_id",
+      "compiled_code": "select c.*, co.order_count, co.total_spend from analytics.raw_customers c left join analytics.int_customer_orders co on c.id = co.customer_id"
+    },
+    "model.ecommerce.dim_products": {
+      "name": "dim_products",
+      "unique_id": "model.ecommerce.dim_products",
+      "package_name": "ecommerce",
+      "path": "dim_products.sql",
+      "original_file_path": "models/marts/dim_products.sql",
+      "config": { "materialized": "table" },
+      "depends_on": { "nodes": ["model.ecommerce.raw_products"] },
+      "execution_time_seconds": 85,
+      "raw_code": "select id, name, category, price from {{ ref('raw_products') }} where deleted_at is null and name like '%widget'",
+      "compiled_code": "select id, name, category, price from analytics.raw_products where deleted_at is null and name like '%widget'"
+    },
+    "model.ecommerce.rpt_sales_summary": {
+      "name": "rpt_sales_summary",
+      "unique_id": "model.ecommerce.rpt_sales_summary",
+      "package_name": "ecommerce",
+      "path": "rpt_sales_summary.sql",
+      "original_file_path": "models/marts/rpt_sales_summary.sql",
+      "config": { "materialized": "table" },
+      "depends_on": { "nodes": ["model.ecommerce.fct_orders", "model.ecommerce.dim_customers", "model.ecommerce.dim_products"] },
+      "execution_time_seconds": 260,
+      "raw_code": "select * from {{ ref('fct_orders') }} f left join {{ ref('dim_customers') }} c on f.customer_id = c.id left join {{ ref('dim_products') }} p on f.product_id = p.id",
+      "compiled_code": "select * from analytics.fct_orders f left join analytics.dim_customers c on f.customer_id = c.id left join analytics.dim_products p on f.product_id = p.id"
+    },
+    "model.ecommerce.rpt_daily_metrics": {
+      "name": "rpt_daily_metrics",
+      "unique_id": "model.ecommerce.rpt_daily_metrics",
+      "package_name": "ecommerce",
+      "path": "rpt_daily_metrics.sql",
+      "original_file_path": "models/marts/rpt_daily_metrics.sql",
+      "config": { "materialized": "view" },
+      "depends_on": { "nodes": ["model.ecommerce.fct_events", "model.ecommerce.rpt_sales_summary"] },
+      "execution_time_seconds": 75,
+      "raw_code": "select * from {{ ref('fct_events') }} union select * from {{ ref('rpt_sales_summary') }}",
+      "compiled_code": "select * from analytics.fct_events union select * from analytics.rpt_sales_summary"
+    }
+  },
+  "sources": {},
+  "macros": {},
+  "parent_map": {},
+  "child_map": {}
+}

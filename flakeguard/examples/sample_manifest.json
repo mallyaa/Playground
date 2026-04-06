@@ -1,0 +1,68 @@
+{
+  "metadata": {
+    "dbt_schema_version": "https://schemas.getdbt.com/dbt/manifest/v10.json",
+    "dbt_core_version": "1.6.0",
+    "generated_at": "2024-01-15T12:00:00Z"
+  },
+  "nodes": {
+    "model.my_project.raw_events": {
+      "name": "raw_events",
+      "unique_id": "model.my_project.raw_events",
+      "package_name": "my_project",
+      "path": "raw_events.sql",
+      "original_file_path": "models/staging/raw_events.sql",
+      "config": { "materialized": "view" },
+      "depends_on": { "nodes": [] },
+      "raw_code": "select * from source_db.events",
+      "compiled_code": "select * from analytics.events"
+    },
+    "model.my_project.events_daily": {
+      "name": "events_daily",
+      "unique_id": "model.my_project.events_daily",
+      "package_name": "my_project",
+      "path": "events_daily.sql",
+      "original_file_path": "models/staging/events_daily.sql",
+      "config": { "materialized": "table" },
+      "depends_on": { "nodes": ["model.my_project.raw_events"] },
+      "raw_code": "select date_trunc('day', created_at) as day, count(*) from {{ ref('raw_events') }} group by 1",
+      "compiled_code": "select date_trunc('day', created_at) as day, count(*) from analytics.raw_events group by 1"
+    },
+    "model.my_project.users": {
+      "name": "users",
+      "unique_id": "model.my_project.users",
+      "package_name": "my_project",
+      "path": "users.sql",
+      "original_file_path": "models/staging/users.sql",
+      "config": { "materialized": "view" },
+      "depends_on": { "nodes": [] },
+      "raw_code": "select * from source_db.users where deleted_at is null",
+      "compiled_code": "select * from analytics.users where deleted_at is null"
+    },
+    "model.my_project.user_events": {
+      "name": "user_events",
+      "unique_id": "model.my_project.user_events",
+      "package_name": "my_project",
+      "path": "user_events.sql",
+      "original_file_path": "models/marts/user_events.sql",
+      "config": { "materialized": "table" },
+      "depends_on": { "nodes": ["model.my_project.events_daily", "model.my_project.users"] },
+      "raw_code": "select u.id, e.day, e.count from {{ ref('users') }} u cross join {{ ref('events_daily') }} e",
+      "compiled_code": "select u.id, e.day, e.count from analytics.users u cross join analytics.events_daily e"
+    },
+    "model.my_project.final_metrics": {
+      "name": "final_metrics",
+      "unique_id": "model.my_project.final_metrics",
+      "package_name": "my_project",
+      "path": "final_metrics.sql",
+      "original_file_path": "models/marts/final_metrics.sql",
+      "config": { "materialized": "incremental" },
+      "depends_on": { "nodes": ["model.my_project.user_events"] },
+      "raw_code": "select * from {{ ref('user_events') }}",
+      "compiled_code": "select * from analytics.user_events"
+    }
+  },
+  "sources": {},
+  "macros": {},
+  "parent_map": {},
+  "child_map": {}
+}
