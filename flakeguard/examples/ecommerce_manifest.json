@@ -172,6 +172,42 @@
       "execution_time_seconds": 75,
       "raw_code": "select * from {{ ref('fct_events') }} union select * from {{ ref('rpt_sales_summary') }}",
       "compiled_code": "select * from analytics.fct_events union select * from analytics.rpt_sales_summary"
+    },
+    "test.ecommerce.not_null_int_customer_orders_customer_id.abc123": {
+      "name": "not_null_int_customer_orders_customer_id",
+      "unique_id": "test.ecommerce.not_null_int_customer_orders_customer_id.abc123",
+      "resource_type": "test",
+      "test_metadata": { "name": "not_null", "kwargs": { "column_name": "customer_id", "model": "ref('int_customer_orders')" } },
+      "depends_on": { "nodes": ["model.ecommerce.int_customer_orders"] },
+      "config": {},
+      "raw_code": "select count(*) from {{ model }} where {{ column_name }} is null"
+    },
+    "test.ecommerce.unique_int_customer_orders_customer_id.def456": {
+      "name": "unique_int_customer_orders_customer_id",
+      "unique_id": "test.ecommerce.unique_int_customer_orders_customer_id.def456",
+      "resource_type": "test",
+      "test_metadata": { "name": "unique", "kwargs": { "column_name": "customer_id", "model": "ref('int_customer_orders')" } },
+      "depends_on": { "nodes": ["model.ecommerce.int_customer_orders"] },
+      "config": {},
+      "raw_code": "select count(*) from (select {{ column_name }} from {{ model }} group by 1 having count(*) > 1)"
+    },
+    "test.ecommerce.accepted_values_int_customer_orders_status.ghi789": {
+      "name": "accepted_values_int_customer_orders_status",
+      "unique_id": "test.ecommerce.accepted_values_int_customer_orders_status.ghi789",
+      "resource_type": "test",
+      "test_metadata": { "name": "accepted_values", "kwargs": { "column_name": "status", "values": ["active","inactive","pending"], "model": "ref('int_customer_orders')" } },
+      "depends_on": { "nodes": ["model.ecommerce.int_customer_orders"] },
+      "config": {},
+      "raw_code": "select count(*) from {{ model }} where {{ column_name }} not in ('active','inactive','pending')"
+    },
+    "test.ecommerce.not_null_dim_customers_id.jkl012": {
+      "name": "not_null_dim_customers_id",
+      "unique_id": "test.ecommerce.not_null_dim_customers_id.jkl012",
+      "resource_type": "test",
+      "test_metadata": { "name": "not_null", "kwargs": { "column_name": "id", "model": "ref('dim_customers')" } },
+      "depends_on": { "nodes": ["model.ecommerce.dim_customers"] },
+      "config": {},
+      "raw_code": "select count(*) from {{ model }} where {{ column_name }} is null"
     }
   },
   "sources": {},

@@ -126,6 +126,34 @@
       "compiled_code": "select * from warehouse.rpt_revenue_by_region cross join warehouse.dim_customer"
     }
   },
+    "test.analytics.not_null_stg_customers_id.aaa111": {
+      "name": "not_null_stg_customers_id",
+      "unique_id": "test.analytics.not_null_stg_customers_id.aaa111",
+      "resource_type": "test",
+      "test_metadata": { "name": "not_null", "kwargs": { "column_name": "id", "model": "ref('stg_customers')" } },
+      "depends_on": { "nodes": ["model.analytics.stg_customers"] },
+      "config": {},
+      "raw_code": "select count(*) from {{ model }} where {{ column_name }} is null"
+    },
+    "test.analytics.unique_stg_customers_id.bbb222": {
+      "name": "unique_stg_customers_id",
+      "unique_id": "test.analytics.unique_stg_customers_id.bbb222",
+      "resource_type": "test",
+      "test_metadata": { "name": "unique", "kwargs": { "column_name": "id", "model": "ref('stg_customers')" } },
+      "depends_on": { "nodes": ["model.analytics.stg_customers"] },
+      "config": {},
+      "raw_code": "select count(*) from (select {{ column_name }} from {{ model }} group by 1 having count(*) > 1)"
+    },
+    "test.analytics.accepted_values_stg_customers_segment.ccc333": {
+      "name": "accepted_values_stg_customers_segment",
+      "unique_id": "test.analytics.accepted_values_stg_customers_segment.ccc333",
+      "resource_type": "test",
+      "test_metadata": { "name": "accepted_values", "kwargs": { "column_name": "segment", "values": ["enterprise","mid-market","smb"], "model": "ref('stg_customers')" } },
+      "depends_on": { "nodes": ["model.analytics.stg_customers"] },
+      "config": {},
+      "raw_code": "select count(*) from {{ model }} where {{ column_name }} not in ('enterprise','mid-market','smb')"
+    }
+  },
   "sources": {},
   "macros": {},
   "parent_map": {},

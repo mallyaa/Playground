@@ -194,12 +194,69 @@ def lint_model_node(node: dict[str, Any]) -> list[LintFinding]:
     return lint_sql(sql, node_meta=meta)
 
 
+def _build_test_coverage_index(manifest: dict[str, Any]) -> dict[str, dict[str, list[str]]]:
+    """Build a map of model_id -> {test_type -> [test_unique_ids]}.
+
+    Parses test nodes from the manifest.  Test unique_ids follow patterns like:
+      test.pkg.not_null_model_col.hash
+      test.pkg.accepted_values_model_col.hash
+      test.pkg.unique_model_col.hash
+      test.pkg.relationships_model_col.hash
+
+    Returns:
+        Dict mapping model unique_id to {test_type: [test_ids]}.
+        test_type is one of: not_null, unique, accepted_values, relationships, other.
+    """
+    coverage: dict[str, dict[str, list[str]]] = {}
+    nodes = manifest.get("nodes", {})
+    for uid, node in nodes.items():
+        if not uid.startswith("test."):
+            continue
+        depends_on = node.get("depends_on") or {}
+        parent_models = [
+            p for p in (depends_on.get("nodes") or [])
+            if p.startswith("model.")
+        ]
+        # Determine test type from unique_id or test_metadata
+        test_meta = node.get("test_metadata") or {}
+        test_name = test_meta.get("name", "")
+        if not test_name:
+            name_lower = uid.lower()
+            if "not_null" in name_lower:
+                test_name = "not_null"
+            elif "accepted_values" in name_lower:
+                test_name = "accepted_values"
+            elif "unique" in name_lower:
+                test_name = "unique"
+            elif "relationships" in name_lower:
+                test_name = "relationships"
+            else:
+                test_name = "other"
+
+        for model_id in parent_models:
+            if model_id not in coverage:
+                coverage[model_id] = {}
+            coverage[model_id].setdefault(test_name, []).append(uid)
+
+    return coverage
+
+
 def lint_manifest_models(manifest: dict[str, Any]) -> list[LintFinding]:
-    """Lint all model nodes in a dbt manifest."""
+    """Lint all model nodes in a dbt manifest, including test coverage checks."""
     findings: list[LintFinding] = []
     nodes = manifest.get("nodes", {})
+
+    test_coverage = _build_test_coverage_index(manifest)
+
     for uid, node in nodes.items():
         if not uid.startswith("model."):
             continue
+        # SQL-level rules
         findings.extend(lint_model_node(node))
+        # Test coverage rules (manifest-level, not SQL-level)
+        meta = _node_meta(node)
+        meta["test_coverage"] = test_coverage.get(uid, {})
+        from flakeguard.rules.dbt_rules import run_test_coverage_rules
+        findings.extend(run_test_coverage_rules(meta))
+
     return findings

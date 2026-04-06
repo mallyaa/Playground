@@ -33,6 +33,7 @@ from flakeguard.rules.correctness_rules import (
 from flakeguard.rules.dbt_rules import (
     FullRefreshLargeTableRule,
     IncrementalMissingIsIncrementalRule,
+    run_test_coverage_rules,
 )
 
 META = {"model_id": "model.test.example", "file_path": "models/example.sql"}
@@ -315,3 +316,141 @@ def test_severity_score_backward_compat() -> None:
     ]
     avg = severity_score(findings)
     assert avg == 3.0  # (5 + 1) / 2
+
+
+# ── E303 No Tests ────────────────────────────────────────────────────────
+
+def test_e303_no_tests_on_table_triggers() -> None:
+    meta = {**META, "materialization": "table", "test_coverage": {}}
+    findings = run_test_coverage_rules(meta)
+    assert any(f.rule_id == "E303_no_tests" for f in findings)
+
+
+def test_e303_no_tests_on_view_clean() -> None:
+    meta = {**META, "materialization": "view", "test_coverage": {}, "file_path": "models/marts/report.sql"}
+    findings = run_test_coverage_rules(meta)
+    assert not any(f.rule_id == "E303_no_tests" for f in findings)
+
+
+def test_e303_with_tests_clean() -> None:
+    meta = {**META, "materialization": "table", "test_coverage": {"not_null": ["test.x.not_null.abc"]}}
+    findings = run_test_coverage_rules(meta)
+    assert not any(f.rule_id == "E303_no_tests" for f in findings)
+
+
+# ── E304 Missing not_null ────────────────────────────────────────────────
+
+def test_e304_missing_not_null_triggers() -> None:
+    meta = {**META, "materialization": "table", "test_coverage": {"unique": ["test.x.unique.abc"]}}
+    findings = run_test_coverage_rules(meta)
+    assert any(f.rule_id == "E304_missing_not_null" for f in findings)
+
+
+def test_e304_has_not_null_clean() -> None:
+    meta = {**META, "materialization": "table", "test_coverage": {"not_null": ["test.x.not_null.abc"]}}
+    findings = run_test_coverage_rules(meta)
+    assert not any(f.rule_id == "E304_missing_not_null" for f in findings)
+
+
+# ── E305 Missing accepted_values ────────────────────────────────────────
+
+def test_e305_missing_accepted_values_triggers() -> None:
+    meta = {**META, "materialization": "incremental", "test_coverage": {"not_null": ["test.x.not_null.abc"]}}
+    findings = run_test_coverage_rules(meta)
+    assert any(f.rule_id == "E305_missing_accepted_values" for f in findings)
+
+
+def test_e305_has_accepted_values_clean() -> None:
+    meta = {**META, "materialization": "table", "test_coverage": {"accepted_values": ["test.x.av.abc"]}}
+    findings = run_test_coverage_rules(meta)
+    assert not any(f.rule_id == "E305_missing_accepted_values" for f in findings)
+
+
+def test_e305_typed_in_path_triggers() -> None:
+    meta = {
+        "model_id": "model.test.example",
+        "file_path": "models/typed/dim_account.sql",
+        "materialization": "view",
+        "test_coverage": {"not_null": ["test.x.not_null.abc"]},
+    }
+    findings = run_test_coverage_rules(meta)
+    assert any(f.rule_id == "E305_missing_accepted_values" for f in findings)
+
+
+# ── E306 Missing unique test ────────────────────────────────────────────
+
+def test_e306_missing_unique_triggers() -> None:
+    meta = {**META, "materialization": "table", "test_coverage": {"not_null": ["test.x.not_null.abc"]}}
+    findings = run_test_coverage_rules(meta)
+    assert any(f.rule_id == "E306_missing_unique_test" for f in findings)
+
+
+def test_e306_has_unique_clean() -> None:
+    meta = {**META, "materialization": "table", "test_coverage": {"unique": ["test.x.unique.abc"]}}
+    findings = run_test_coverage_rules(meta)
+    assert not any(f.rule_id == "E306_missing_unique_test" for f in findings)
+
+
+# ── E303-E306 integration: lint_manifest_models picks up test coverage ──
+
+def test_lint_manifest_models_test_coverage() -> None:
+    from flakeguard.sql_linter import lint_manifest_models
+    manifest = {
+        "nodes": {
+            "model.test.uncovered_table": {
+                "name": "uncovered_table",
+                "unique_id": "model.test.uncovered_table",
+                "config": {"materialized": "table"},
+                "depends_on": {"nodes": []},
+                "original_file_path": "models/typed/uncovered_table.sql",
+                "raw_code": "select id, status from source.raw",
+                "compiled_code": "select id, status from source.raw",
+            },
+            "model.test.covered_table": {
+                "name": "covered_table",
+                "unique_id": "model.test.covered_table",
+                "config": {"materialized": "table"},
+                "depends_on": {"nodes": []},
+                "original_file_path": "models/typed/covered_table.sql",
+                "raw_code": "select id, status from source.raw",
+                "compiled_code": "select id, status from source.raw",
+            },
+            "test.test.not_null_covered_table_id.xyz": {
+                "name": "not_null_covered_table_id",
+                "unique_id": "test.test.not_null_covered_table_id.xyz",
+                "resource_type": "test",
+                "test_metadata": {"name": "not_null"},
+                "depends_on": {"nodes": ["model.test.covered_table"]},
+                "config": {},
+                "raw_code": "select count(*) from {{ model }} where id is null",
+            },
+            "test.test.unique_covered_table_id.xyz": {
+                "name": "unique_covered_table_id",
+                "unique_id": "test.test.unique_covered_table_id.xyz",
+                "resource_type": "test",
+                "test_metadata": {"name": "unique"},
+                "depends_on": {"nodes": ["model.test.covered_table"]},
+                "config": {},
+                "raw_code": "select count(*) from ...",
+            },
+            "test.test.accepted_values_covered_table_status.xyz": {
+                "name": "accepted_values_covered_table_status",
+                "unique_id": "test.test.accepted_values_covered_table_status.xyz",
+                "resource_type": "test",
+                "test_metadata": {"name": "accepted_values"},
+                "depends_on": {"nodes": ["model.test.covered_table"]},
+                "config": {},
+                "raw_code": "select count(*) from ...",
+            },
+        }
+    }
+    findings = lint_manifest_models(manifest)
+    rule_ids = [f.rule_id for f in findings]
+
+    # uncovered_table should trigger E303
+    e303 = [f for f in findings if f.rule_id == "E303_no_tests" and "uncovered_table" in (f.model_id or "")]
+    assert len(e303) == 1
+
+    # covered_table should NOT trigger E303-E306
+    covered_test_cov = [f for f in findings if f.rule_id.startswith("E30") and f.model_id == "model.test.covered_table"]
+    assert len(covered_test_cov) == 0
